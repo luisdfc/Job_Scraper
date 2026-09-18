@@ -19,3 +19,16 @@ scoring_profile.json
 # "git add -f output/<file>" to commit their own results.
 output/*
 !output/.gitkeep
+
+# Local-only configuration, applications, diagnostics and backups.
+private/
+archive/
+output_backup_*/
+*.before_*
+.venv/
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.md
+.pytest_cache/

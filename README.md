@@ -1,3 +1,9 @@
+> **Uso local:** ejecuta `.\.venv\Scripts\python.exe job_search.py open` desde esta carpeta.
+> Para buscar novedades semanalmente: `.\.venv\Scripts\python.exe job_search.py weekly`.
+> La guía paso a paso está en `private/GUIA_USO.md` (solo en tu ordenador).
+> El perfil, la configuración y los resultados personales se excluyen de Git.
+> Las automatizaciones heredadas se han trasladado a `.github/disabled-workflows/`.
+> La documentación siguiente describe el proyecto original; la rutina local usa `job_search.py`.
 # 🧪 Job Scraper + Triage Dashboard
 
 GitHub Actions pipelines that scrape job boards (LinkedIn, Indeed, Glassdoor, ZipRecruiter, Google Jobs, HiringCafe, USAJOBS, NEOGOV, CalOpps, CalCareers, CSU Careers) on a schedule, commit the results to the repo, and surface them in a single filterable [`triage.html`](#interactive-triage-dashboard--triagehtml) dashboard hosted **free** on GitHub Pages — with a map, salary harmonization, cross-source de-duplication, notes, bulk workflow states, CSV export, application-packet prompts, and optional phone notifications. **No server, no paid services, and no API keys required.**

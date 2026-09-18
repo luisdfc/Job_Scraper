@@ -27,7 +27,7 @@ from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -132,7 +132,7 @@ FRESH_JOB_LOOKBACK = timedelta(hours=24)
 # Single tokens are word-bounded; multi-word phrases match as substrings.
 def _build_title_re(terms: list) -> re.Pattern:
     return re.compile(
-        "|".join(re.escape(t) if (" " in t or "&" in t) else rf"\b{re.escape(t)}\b" for t in terms),
+        "|".join(re.escape(t) if (" " in t or "&" in t) else rf"\b{re.escape(t)}\b" for t in terms) or r"(?!)",
         re.IGNORECASE,
     )
 
@@ -323,22 +323,12 @@ _US_STATE_NAMES = [
 
 
 def is_target_location(location: str) -> bool:
+    """Config-driven geographic filter for this fork."""
     if not location:
         return False
-    loc = location.lower()
-    # If a US state full name matches, accept immediately — this handles
-    # "New Mexico" (contains "mexico") and "Indiana" (contains "india")
-    # which would otherwise be rejected by the country check below.
-    if any(state in loc for state in _US_STATE_NAMES):
+    loc = re.sub(r"\s+", " ", str(location)).strip().lower()
+    if not TARGET_LOCATIONS:
         return True
-    # Reject non-US countries — prevents ", ca" matching "Canada", etc.
-    # Multi-word countries: substring match (safe, distinctive phrases).
-    if any(country in loc for country in NON_US_COUNTRIES_MULTI):
-        return False
-    # Single-word countries: word-boundary match (prevents "india" matching
-    # "Indiana", "mexico" matching "New Mexico", etc.).
-    if _NON_US_COUNTRY_RE.search(loc):
-        return False
     return any(place in loc for place in TARGET_LOCATIONS)
 
 
@@ -528,7 +518,7 @@ def scrape_curated_employers() -> list:
 
 LINKEDIN_SEARCH_TERMS = _cfg("search_terms.linkedin", [])
 
-LINKEDIN_LOOKBACK_SECONDS = 3600          # 1h — every-2h watcher only surfaces the freshest hour
+LINKEDIN_LOOKBACK_SECONDS = int(_cfg("run.linkedin_hours", 48)) * 3600
 LINKEDIN_PRIORITY_LOOKBACK_SECONDS = 86400 # 24h — priority digest is a daily 8pm PT run
 
 # Geographies to search. geoId is LinkedIn's authoritative region filter; an
@@ -1034,9 +1024,9 @@ def scrape_linkedin_priority() -> list:
 # Both reuse python-jobspy so the repo keeps its single optional dependency.
 # ---------------------------------------------------------------------------
 
-INDEED_LOOKBACK_HOURS = 24  # Indeed posting dates are ~day-resolution, so a 1h window
+INDEED_LOOKBACK_HOURS = int(_cfg("run.indeed_hours", 48))  # Overlap daily runs.
 # returns almost nothing; the hourly watcher's cross-run dedupe trims the overlap.
-INDEED_BACKFILL_DAYS = 50  # one-time historical backfill window
+INDEED_BACKFILL_DAYS = int(_cfg("run.backfill_days", 30))
 
 # Indeed geographies. country sets the Indeed domain (USA → indeed.com,
 # Australia → au.indeed.com). Searched per term, so we use a tighter term list
@@ -1170,7 +1160,11 @@ def _ingest_jobspy_df(df, *, label: str, jobs_by_id: dict[str, dict]) -> int:
                 row.get("min_amount", ""),
                 row.get("max_amount", ""),
                 row.get("interval", ""),
+                row.get("currency", "") or "",
             ),
+            "salary_min": row.get("min_amount", ""),
+            "salary_max": row.get("max_amount", ""),
+            "salary_interval": str(row.get("interval", "") or ""),
             "salary_source": str(row.get("salary_source", "") or ""),
             "salary_currency": str(row.get("currency", "") or ""),
             "job_type": job_type,
@@ -2495,7 +2489,7 @@ def save_csucareers_results(jobs: list):
     )
 
 
-def format_salary(min_amount, max_amount, interval) -> str:
+def format_salary(min_amount, max_amount, interval, currency="USD") -> str:
     """
     Display string for jobspy's Indeed pay fields, e.g. "$150k–$190k/yr" or
     "$62.50/hr". Returns "" when neither bound is present.
@@ -2509,11 +2503,12 @@ def format_salary(min_amount, max_amount, interval) -> str:
 
     def _fmt(n):
         if n >= 10000:
-            return f"${round(n / 1000)}k"
+            return f"{symbol}{round(n / 1000)}k"
         if n == int(n):
-            return f"${int(n)}"
-        return f"${n:.2f}"
+            return f"{symbol}{int(n)}"
+        return f"{symbol}{n:.2f}"
 
+    symbol = {"EUR": "€", "USD": "$", "GBP": "£"}.get(str(currency).upper(), str(currency) + " ")
     lo, hi = _num(min_amount), _num(max_amount)
     if lo is None and hi is None:
         return ""
@@ -2728,6 +2723,10 @@ def _merge_duplicate_job(existing: dict, incoming: dict) -> int:
         if incoming.get(key) and not existing.get(key):
             existing[key] = incoming[key]
             enriched += 1
+    if incoming.get("salary") and existing.get("salary") == incoming.get("salary"):
+        for key in ("salary_currency", "salary_source", "salary_min", "salary_max", "salary_interval"):
+            if incoming.get(key) and not existing.get(key):
+                existing[key] = incoming[key]
     for key in ("direct_url", "date_posted", "job_type", "is_remote", "telework", "work_arrangement"):
         if incoming.get(key) and not existing.get(key):
             existing[key] = incoming[key]
@@ -2792,7 +2791,7 @@ ALL_JOBS_PRUNE_DAYS = 30
 # LinkedIn's guest API reliably supports ~30 days via f_TPR; use this for the
 # one-time historical backfill (--linkedin-backfill) so new users get a full
 # picture without running hourly for weeks.
-LINKEDIN_BACKFILL_DAYS = 30
+LINKEDIN_BACKFILL_DAYS = int(_cfg("run.backfill_days", 30))
 
 
 def _merge_into_all_jobs(new_jobs: list) -> int:
@@ -3209,6 +3208,15 @@ def _linkedin_merge_backfill_files(output_dir: str) -> tuple[list[dict], list[di
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        from job_search import main as local_main
+        sys.argv.append("weekly")
+        local_main()
+        sys.exit(0)
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Local workflow: python job_search.py {check,initial,weekly,rank,open} [--source indeed|linkedin|both]")
+        print("Source commands: --indeed-only, --indeed-backfill, --linkedin-only, --linkedin-backfill")
+        sys.exit(0)
     if "--indeed-only" in sys.argv:
         save_indeed_results(scrape_indeed_recent())
         sys.exit(0)

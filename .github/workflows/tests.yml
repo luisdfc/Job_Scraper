@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - "scrape_jobs.py"
+      - "job_search.py"
       - "tests/**"
       - ".github/workflows/tests.yml"
   pull_request:
     paths:
       - "scrape_jobs.py"
+      - "job_search.py"
       - "tests/**"
   workflow_dispatch:
 

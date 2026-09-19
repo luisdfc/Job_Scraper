@@ -1,0 +1,21 @@
+{
+  "version": "example-customize-before-use",
+  "base": 35,
+  "financial_domain_pattern": "financial|financiero|banking|banca",
+  "outside_finance_penalty": -15,
+  "rules": [
+    {
+      "label": "Análisis financiero",
+      "field": "title",
+      "pattern": "financial analyst|analista financiero",
+      "weight": 20
+    }
+  ],
+  "candidate": {
+    "relevant_years": 2
+  },
+  "salary": {},
+  "_notes": [
+    "Plantilla genérica. Ajustar preferencias, experiencia y requisitos con el perfil local antes de usar."
+  ]
+}

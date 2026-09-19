@@ -1,1 +1,2 @@
-python-jobspy>=1.1.82
+# Local application dependencies; see README.md.
+-r requirements.local.txt

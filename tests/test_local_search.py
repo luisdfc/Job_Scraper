@@ -37,20 +37,20 @@ def test_untrusted_html_and_urls_are_not_executable(tmp_path):
     assert safe_url('https://example.com/job')
 
 
-def test_daily_uses_bounded_recent_pipeline(tmp_path, monkeypatch):
-    import sys
+def test_daily_uses_seven_day_snapshot_pipeline(tmp_path, monkeypatch):
     import job_search as local
     (tmp_path / 'private').mkdir()
-    (tmp_path / 'config.json').write_text('{}', encoding='utf-8')
+    config = {'search_terms': {'linkedin': ['financial analyst']},
+              'locations': {'linkedin': [{'location': 'Madrid, Spain'}]}}
+    (tmp_path / 'config.json').write_text(json.dumps(config), encoding='utf-8')
     (tmp_path / 'private' / 'ranking.json').write_text('{"rules": []}', encoding='utf-8')
     monkeypatch.setattr(local, 'ROOT', tmp_path)
-    monkeypatch.setattr(sys, 'argv', ['job_search.py', 'daily', '--source', 'linkedin'])
     calls = []
-    monkeypatch.setattr(s, 'scrape_linkedin_recent', lambda: [{'title': 'Example'}])
-    monkeypatch.setattr(s, 'save_linkedin_results', lambda jobs: calls.append(jobs))
-    monkeypatch.setattr(local, 'rank', lambda: tmp_path / 'report.html')
-    local.main()
-    assert calls == [[{'title': 'Example'}]]
+    monkeypatch.setattr(local, 'run_search', lambda *a, **kw: calls.append(kw))
+    assert local.main(['daily', '--source', 'linkedin']) == 0
+    assert calls[0]['days'] == 7
+    assert calls[0]['source'] == 'linkedin'
+    assert calls[0]['verify'] is True
 
 
 def test_salary_unknown_kept_and_annual_currency_required():
@@ -77,10 +77,10 @@ def test_explicit_schedule_signal_and_negation():
     assert evaluate(job, rules)['fit_score'] == baseline
 
 
-def test_report_cap_preserves_full_json(tmp_path):
+def test_report_has_no_cap_and_preserves_full_json(tmp_path):
     jobs = [evaluate({'title': f'Analyst {i}'}, {'rules': []}) for i in range(65)]
     write_report(jobs, tmp_path, {'excluded': 0, 'stale': 0}, max_results=60)
-    assert (tmp_path / 'shortlist.html').read_text(encoding='utf-8').count('<article ') == 60
+    assert (tmp_path / 'shortlist.html').read_text(encoding='utf-8').count('<article ') == 65
     assert len(json.loads((tmp_path / 'ranked_jobs.json').read_text(encoding='utf-8'))['jobs']) == 65
 
 
@@ -97,18 +97,16 @@ def test_salary_metadata_survives_cross_source_enrichment():
     assert old['salary_min'] == 35000
 
 
-def test_weekly_uses_recent_pipeline(tmp_path, monkeypatch):
-    import sys
+def test_weekly_uses_seven_days_not_eight(tmp_path, monkeypatch):
     import job_search as local
     (tmp_path / 'private').mkdir()
-    (tmp_path / 'config.json').write_text('{}', encoding='utf-8')
+    config = {'search_terms': {'indeed': ['financial analyst']},
+              'locations': {'indeed': [{'location': 'Madrid', 'country': 'Spain'}]}}
+    (tmp_path / 'config.json').write_text(json.dumps(config), encoding='utf-8')
     (tmp_path / 'private' / 'ranking.json').write_text('{"rules": []}', encoding='utf-8')
     monkeypatch.setattr(local, 'ROOT', tmp_path)
-    monkeypatch.setattr(sys, 'argv', ['job_search.py', 'weekly', '--source', 'indeed'])
     calls = []
-    monkeypatch.setattr(s, 'INDEED_LOOKBACK_HOURS', 192)
-    monkeypatch.setattr(s, 'scrape_indeed_recent', lambda hours_old: calls.append(hours_old) or [])
-    monkeypatch.setattr(s, 'save_indeed_results', lambda jobs: None)
-    monkeypatch.setattr(local, 'rank', lambda: tmp_path / 'report.html')
-    local.main()
-    assert calls == [192]
+    monkeypatch.setattr(local, 'run_search', lambda *a, **kw: calls.append(kw))
+    assert local.main(['weekly', '--source', 'indeed']) == 0
+    assert calls[0]['days'] == 7
+    assert calls[0]['source'] == 'indeed'

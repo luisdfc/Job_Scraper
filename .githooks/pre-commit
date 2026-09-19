@@ -1,0 +1,8 @@
+#!/bin/sh
+if [ -x .venv/Scripts/python.exe ]; then
+  exec .venv/Scripts/python.exe scripts/check_privacy.py
+elif [ -x .venv/bin/python ]; then
+  exec .venv/bin/python scripts/check_privacy.py
+else
+  exec python scripts/check_privacy.py
+fi

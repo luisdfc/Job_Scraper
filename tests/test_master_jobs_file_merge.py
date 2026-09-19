@@ -1,17 +1,22 @@
 """Test _merge_into_all_jobs — master file merge with field preservation."""
 import json
-from datetime import datetime, timezone
 from scrape_jobs import _merge_into_all_jobs
 
+# These tests verify preservation, not retention. Freeze the clock to the fixture's
+# reference date so they do not start failing merely because a month has passed.
+import pytest
+from datetime import datetime, timezone
 
-def _freshen_job(sample_all_jobs, url):
-    """Keep field-preservation tests independent of the 30-day production prune."""
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    for job in sample_all_jobs["jobs"]:
-        if job["url"] == url:
-            job["first_seen"] = stamp
-            return
-    raise AssertionError(f"Fixture is missing {url}")
+@pytest.fixture(autouse=True)
+def _fixture_clock(monkeypatch):
+    import scrape_jobs
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            fixed = cls(2026, 8, 15, 12, tzinfo=timezone.utc)
+            return fixed.astimezone(tz) if tz else fixed.replace(tzinfo=None)
+    monkeypatch.setattr(scrape_jobs, 'datetime', FixedDatetime)
+
 
 
 def test_merge_adds_new_jobs(tmp_output_dir, sample_all_jobs):
@@ -39,7 +44,6 @@ def test_merge_adds_new_jobs(tmp_output_dir, sample_all_jobs):
 
 def test_preserves_existing_fields_on_duplicate(tmp_output_dir, sample_all_jobs):
     """Existing downstream fields (bookmarked, notes) must be preserved when merging a duplicate."""
-    _freshen_job(sample_all_jobs, "https://www.linkedin.com/jobs/view/4400000001/")
     path = tmp_output_dir / "all_jobs.json"
     path.write_text(json.dumps(sample_all_jobs, separators=(",", ":")))
 
@@ -59,7 +63,6 @@ def test_preserves_existing_fields_on_duplicate(tmp_output_dir, sample_all_jobs)
 
 def test_preserves_false_tag_on_duplicate(tmp_output_dir, sample_all_jobs):
     """Existing false-valued downstream fields must be preserved when merging a duplicate."""
-    _freshen_job(sample_all_jobs, "https://www.linkedin.com/jobs/view/4400000008/")
     path = tmp_output_dir / "all_jobs.json"
     path.write_text(json.dumps(sample_all_jobs, separators=(",", ":")))
 

@@ -1,34 +1,36 @@
-.DS_Store
-__pycache__/
-
-# Personal data — NEVER commit (public repo). CI gets these via Actions secrets.
+# Local identity, preferences, results and applications never belong in Git.
+private/
+runs/
+archive/
+output/*
+!output/.gitkeep
+config.json
+scoring_profile.json
 candidate_profile.md
 resume.md
 resume.txt
+profile_master_*
+Fuentes_organizadas*
+candidaturas_*
 shortlist.*
-
-# ── Fork-owner customization ──────────────────────────────────────────────────
-# Upstream never commits these so pulling upstream never creates merge conflicts.
-# Fork owners: copy from *.example.json, customize, then commit to YOUR fork.
-config.json
-scoring_profile.json
-
-# ── Scraped results & CI-generated data (unique per fork) ─────────────────────
-# output/ holds everything the scrapers write. Upstream never commits these so
-# pulling upstream never creates merge conflicts. Fork owners' CI uses
-# "git add -f output/<file>" to commit their own results.
-output/*
-!output/.gitkeep
-
-# Local-only configuration, applications, diagnostics and backups.
-private/
-archive/
-output_backup_*/
+index.html
+*.sqlite*
+*.db
+*.docx
+*.pdf
+*.xlsx
+*.zip
+*.local.json
+*.local.md
 *.before_*
+output_backup_*/
+Job_Scraper_actualizacion*/
+
+# Environments, secrets and caches
 .venv/
 .env
 .env.*
 !.env.example
-*.local.json
-*.local.md
+__pycache__/
 .pytest_cache/
+.DS_Store

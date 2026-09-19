@@ -1,19 +1,7 @@
-name: Tests
-
-on:
-  push:
-    paths:
-      - "scrape_jobs.py"
-      - "job_search.py"
-      - "tests/**"
-      - ".github/workflows/tests.yml"
-  pull_request:
-    paths:
-      - "scrape_jobs.py"
-      - "job_search.py"
-      - "tests/**"
-  workflow_dispatch:
-
+name: Local scraper checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -21,10 +9,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r tests/requirements-dev.txt
-      - name: Run tests
-        run: pytest tests/ -v --ignore=tests/local
+          python-version: "3.12"
+      - name: Check repository privacy
+        run: python scripts/check_privacy.py
+      - name: Install test dependencies
+        run: pip install -r tests/requirements-dev.txt
+      - name: Test offline
+        run: python -m pytest --ignore=tests/local -q

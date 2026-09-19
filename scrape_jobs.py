@@ -1,12 +1,7 @@
-"""
-Pipelines (see __main__) include LinkedIn's guest endpoint, JobSpy-backed
-Indeed/Glassdoor, public-sector boards, and a priority-employer sweep
-(allowlist-filtered LinkedIn + optional direct Greenhouse/Workday probes). Each
-writes {basename}.{json,md,html} digests and accumulates into all_jobs.json for
-the dashboard and triage agent.
+"""Source parsers and normalization inherited from the upstream scraper.
 
-Tune the search in config.json: title keywords, board-specific search terms,
-priority employers, locations, and LinkedIn geoIds / JobSpy locations.
+The supported local workflow is job_search.py. It uses these adapters without
+legacy cumulative exports, title filters, cloud publishing or notifications.
 """
 
 import http.cookiejar
@@ -43,7 +38,7 @@ HEADERS = {
 
 # ---------------------------------------------------------------------------
 # Config — ALL of a user's search settings live in config.json (edit it by hand
-# or generate it from a CV; see docs/cv-to-config-prompt.md). config.example.json
+# locally). config.example.json
 # (committed, always present) supplies the base values; config.json (personal,
 # gitignored) is deep-merged on top key-by-key, so an older/partial config.json
 # missing a newer key still picks up the example's value for it. There are no
@@ -2893,13 +2888,6 @@ def save_jobs_output(jobs: list, *, basename: str, title: str, subtitle: str,
         _merge_into_all_jobs(jobs)
     except Exception as e:
         print(f"  ⚠️  all_jobs.json accumulator failed (non-fatal): {e}")
-
-    # Push the highly-relevant new roles to Pushover (no-op without creds).
-    try:
-        import notify
-        notify.notify_new_jobs(new_jobs, basename)
-    except Exception as e:
-        print(f"  ⚠️  Pushover notify failed (non-fatal): {e}")
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
